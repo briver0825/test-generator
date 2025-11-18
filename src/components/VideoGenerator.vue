@@ -2,7 +2,8 @@
 import { reactive, ref } from 'vue'
 import { getFFmpeg } from '../lib/ffmpeg'
 import type { GeneratedAsset } from '../types'
-import { formatBytes, generateId, computeHash } from '../utils/format'
+import { formatBytes, generateId } from '../utils/format'
+import { computeFFmpegMD5 } from '../utils/hash'
 
 type ViewMode = 'card' | 'list' | 'table'
 
@@ -157,7 +158,7 @@ const generateVideo = async () => {
     const videoBinary = new Uint8Array(data)
     const videoBuffer = videoBinary.buffer.slice(videoBinary.byteOffset, videoBinary.byteOffset + videoBinary.byteLength)
     const blob = new Blob([videoBuffer], { type: 'video/mp4' })
-    const hash = await computeHash(blob)
+    const hash = await computeFFmpegMD5(blob)
     placeholder.url = URL.createObjectURL(blob)
     placeholder.size = blob.size
     placeholder.sizeLabel = formatBytes(blob.size)
@@ -281,11 +282,12 @@ const removeAsset = (assetId: string) => {
             <video :src="asset.url" controls preload="metadata"></video>
           </template>
           <div v-else class="video-placeholder">视频尚未生成</div>
-          <div class="asset-meta">
-            <strong>{{ asset.name }}</strong>
-            <span>{{ asset.detail }}</span>
-            <span>{{ asset.sizeLabel }}</span>
-          </div>
+            <div class="asset-meta">
+              <strong>{{ asset.name }}</strong>
+              <span>{{ asset.detail }}</span>
+              <span>{{ asset.sizeLabel }}</span>
+              <span v-if="asset.hash" class="asset-hash">MD5: {{ asset.hash }}</span>
+            </div>
           <div class="asset-actions">
             <button :disabled="asset.status !== 'ready'" type="button" @click.stop="downloadAsset(asset)">
               下载
@@ -327,6 +329,7 @@ const removeAsset = (assetId: string) => {
               <strong>{{ asset.name }}</strong>
               <span>{{ asset.detail }}</span>
               <span>{{ asset.sizeLabel }}</span>
+              <span v-if="asset.hash" class="asset-hash">MD5: {{ asset.hash }}</span>
             </div>
           <div class="list-status">
             <span :class="assetStatusClass(asset)">{{ assetStatusText(asset) }}</span>
@@ -352,17 +355,18 @@ const removeAsset = (assetId: string) => {
         </article>
       </div>
       <div class="table-wrapper" v-else>
-        <table class="result-table">
-          <thead>
-            <tr>
-              <th>预览</th>
-              <th>名称</th>
-              <th>详情</th>
-              <th>大小</th>
-              <th>状态</th>
-              <th>操作</th>
-            </tr>
-          </thead>
+          <table class="result-table">
+            <thead>
+              <tr>
+                <th>预览</th>
+                <th>名称</th>
+                <th>详情</th>
+                <th>大小</th>
+                <th>哈希</th>
+                <th>状态</th>
+                <th>操作</th>
+              </tr>
+            </thead>
           <tbody>
             <tr v-for="asset in videoResults" :key="asset.id">
               <td>
@@ -373,32 +377,39 @@ const removeAsset = (assetId: string) => {
                   <div v-else class="video-placeholder">-</div>
                 </div>
               </td>
-              <td>{{ asset.name }}</td>
+                  <td class="table-name">{{ asset.name }}</td>
               <td>{{ asset.detail }}</td>
               <td>{{ asset.sizeLabel }}</td>
+              <td>{{ asset.hash || '-' }}</td>
               <td>
                 <span :class="assetStatusClass(asset)">{{ assetStatusText(asset) }}</span>
               </td>
-              <td class="table-actions">
-                <button type="button" :disabled="!canPreview(asset)" @click="canPreview(asset) && emit('preview', asset)">
-                  预览
-                </button>
-                <button
-                  type="button"
-                  :disabled="!canDownload(asset)"
-                  @click="canDownload(asset) && downloadAsset(asset)"
-                >
-                  下载
-                </button>
-                <button
-                  type="button"
-                  class="ghost-button"
-                  :disabled="asset.status === 'pending'"
-                  @click="removeAsset(asset.id)"
-                >
-                  删除
-                </button>
-              </td>
+                  <td>
+                    <div class="table-actions">
+                      <button
+                        type="button"
+                        :disabled="!canPreview(asset)"
+                        @click="canPreview(asset) && emit('preview', asset)"
+                      >
+                        预览
+                      </button>
+                      <button
+                        type="button"
+                        :disabled="!canDownload(asset)"
+                        @click="canDownload(asset) && downloadAsset(asset)"
+                      >
+                        下载
+                      </button>
+                      <button
+                        type="button"
+                        class="ghost-button"
+                        :disabled="asset.status === 'pending'"
+                        @click="removeAsset(asset.id)"
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </td>
             </tr>
           </tbody>
         </table>

@@ -435,6 +435,12 @@ button:disabled {
   font-size: 15px;
 }
 
+.asset-hash {
+  font-size: 12px;
+  color: #64748b;
+  font-family: 'JetBrains Mono', 'Menlo', monospace;
+}
+
 .asset-actions {
   display: flex;
   flex-wrap: wrap;
@@ -800,6 +806,13 @@ button:disabled {
   font-size: 12px;
 }
 
+.result-table .table-name {
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .table-thumb img,
 .table-thumb video,
 .table-thumb .video-placeholder {
@@ -810,4 +823,5 @@ button:disabled {
 .table-actions {
   display: flex;
   gap: 8px;
+  align-items: center;
 }

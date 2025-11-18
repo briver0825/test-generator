@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import type { GeneratedAsset } from '../types'
-import { formatBytes, generateId, computeHash } from '../utils/format'
+import { formatBytes, generateId } from '../utils/format'
+import { computeFFmpegMD5 } from '../utils/hash'
 
 type ViewMode = 'card' | 'list' | 'table'
 type GenerationMode = 'single' | 'batch'
@@ -169,7 +170,7 @@ const generateImage = async () => {
         if (ctx) addHashNoise(ctx)
       }
       const blob = await canvasToBlob(canvas, config.format)
-      const hash = await computeHash(blob)
+      const hash = await computeFFmpegMD5(blob)
       const asset: GeneratedAsset = {
         id: generateId(),
         kind: 'image',
@@ -304,12 +305,13 @@ const downloadAsset = (asset: GeneratedAsset) => {
       </div>
       <template v-if="imageResults.length">
         <div class="result-grid" v-if="viewMode === 'card'">
-          <article class="asset-card" v-for="asset in imageResults" :key="asset.id" @click="emit('preview', asset)">
-            <img :src="asset.url" :alt="asset.name" loading="lazy" />
+        <article class="asset-card" v-for="asset in imageResults" :key="asset.id" @click="emit('preview', asset)">
+          <img :src="asset.url" :alt="asset.name" loading="lazy" />
           <div class="asset-meta">
             <strong>{{ asset.name }}</strong>
             <span>{{ asset.detail }}</span>
             <span>{{ asset.sizeLabel }}</span>
+            <span v-if="asset.hash" class="asset-hash">MD5: {{ asset.hash }}</span>
           </div>
         <div class="asset-actions">
           <button type="button" @click.stop="downloadAsset(asset)">下载</button>
@@ -326,6 +328,7 @@ const downloadAsset = (asset: GeneratedAsset) => {
               <strong>{{ asset.name }}</strong>
               <span>{{ asset.detail }}</span>
               <span>{{ asset.sizeLabel }}</span>
+              <span v-if="asset.hash" class="asset-hash">MD5: {{ asset.hash }}</span>
             </div>
             <div class="list-status">
               <span class="badge badge-ready">可用</span>
@@ -340,6 +343,14 @@ const downloadAsset = (asset: GeneratedAsset) => {
         <div class="table-wrapper" v-else>
           <table class="result-table">
             <thead>
+              <tr>
+                <th>预览</th>
+                <th>名称</th>
+                <th>详情</th>
+                <th>大小</th>
+                <th>哈希</th>
+                <th>操作</th>
+              </tr>
             </thead>
             <tbody>
               <tr v-for="asset in imageResults" :key="asset.id">
@@ -348,14 +359,17 @@ const downloadAsset = (asset: GeneratedAsset) => {
                     <img :src="asset.url" :alt="asset.name" loading="lazy" />
                   </div>
                 </td>
-                <td>{{ asset.name }}</td>
+                <td class="table-name">{{ asset.name }}</td>
                 <td>{{ asset.detail }}</td>
                 <td>{{ asset.sizeLabel }}</td>
-                <td class="table-actions">
-                <button type="button" @click="emit('preview', asset)">预览</button>
-                <button type="button" @click="downloadAsset(asset)">下载</button>
-                <button type="button" class="ghost-button" @click="removeAsset(asset.id)">删除</button>
-              </td>
+                <td>{{ asset.hash || '-' }}</td>
+                <td>
+                  <div class="table-actions">
+                    <button type="button" @click="emit('preview', asset)">预览</button>
+                    <button type="button" @click="downloadAsset(asset)">下载</button>
+                    <button type="button" class="ghost-button" @click="removeAsset(asset.id)">删除</button>
+                  </div>
+                </td>
               </tr>
             </tbody>
           </table>

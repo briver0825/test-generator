@@ -8,14 +8,4 @@ export const formatBytes = (bytes: number) => {
 
 export const generateId = () => (crypto?.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2))
 
-export const computeHash = async (blob: Blob) => {
-  if (typeof window === 'undefined' || !('crypto' in window) || !window.crypto.subtle) {
-    return ''
-  }
-  const buffer = await blob.arrayBuffer()
-  const digest = await window.crypto.subtle.digest('MD5', buffer).catch(() => null)
-  if (!digest) return ''
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('')
-}
+export const computeHash = async (_blob: Blob) => ''

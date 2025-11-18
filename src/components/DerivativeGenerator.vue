@@ -2,7 +2,8 @@
 import { computed, ref } from 'vue'
 import { getFFmpeg } from '../lib/ffmpeg'
 import type { GeneratedAsset } from '../types'
-import { formatBytes, generateId, computeHash } from '../utils/format'
+import { formatBytes, generateId } from '../utils/format'
+import { computeFFmpegMD5 } from '../utils/hash'
 
 const props = defineProps<{ maxHistory: number }>()
 
@@ -27,9 +28,12 @@ const viewOptions: { value: ViewMode; label: string }[] = [
   { value: 'table', label: '表格' },
 ]
 
+const selectedHash = ref<string>('')
+
 const fileInfo = computed(() => {
   if (!selectedFile.value) return '未选择文件'
-  return `${selectedFile.value.name} · ${formatBytes(selectedFile.value.size)}`
+  const base = `${selectedFile.value.name} · ${formatBytes(selectedFile.value.size)}`
+  return selectedHash.value ? `${base} · MD5: ${selectedHash.value}` : base
 })
 
 const cleanupAsset = (asset?: GeneratedAsset) => {
@@ -52,13 +56,23 @@ const removeAsset = (id: string) => {
   emit('toast', { type: 'success', message: '已删除衍生素材' })
 }
 
-const onFileChange = (event: Event) => {
+const onFileChange = async (event: Event) => {
   const target = event.target as HTMLInputElement
-  selectedFile.value = target.files?.[0] ?? null
+  const file = target.files?.[0] ?? null
+  selectedFile.value = file
+  selectedHash.value = ''
+  if (file) {
+    try {
+      selectedHash.value = await computeFFmpegMD5(file)
+    } catch {
+      selectedHash.value = ''
+    }
+  }
 }
 
 const clearFile = () => {
   selectedFile.value = null
+  selectedHash.value = ''
   if (fileInput.value) fileInput.value.value = ''
 }
 
@@ -101,7 +115,7 @@ const deriveFromImage = async (file: File) => {
   const blob: Blob = await new Promise((resolve, reject) => {
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('生成失败'))), format, format === 'image/jpeg' ? 0.92 : undefined)
   })
-  const hash = await computeHash(blob)
+  const hash = await computeFFmpegMD5(blob)
   return {
     blob,
     detail: `${image.width} × ${image.height}px`,
@@ -136,7 +150,7 @@ const deriveFromVideo = async (file: File) => {
     videoBinary.byteOffset + videoBinary.byteLength,
   )
   const blob = new Blob([videoBuffer], { type: 'video/mp4' })
-  const hash = await computeHash(blob)
+  const hash = await computeFFmpegMD5(blob)
   await ffmpeg.deleteFile(inputName).catch(() => undefined)
   await ffmpeg.deleteFile(outputName).catch(() => undefined)
   return {
@@ -182,7 +196,6 @@ const deriveMaterial = async () => {
     pushResult(asset)
     emit('toast', { type: 'success', message: '素材衍生完成' })
     emit('status', '素材衍生完成')
-    clearFile()
   } catch (error) {
     const message = error instanceof Error ? error.message : '衍生失败'
     emit('status', message)
@@ -265,6 +278,7 @@ const downloadAsset = (asset: GeneratedAsset) => {
               <strong>{{ asset.name }}</strong>
               <span>{{ asset.detail }}</span>
               <span>{{ asset.sizeLabel }}</span>
+              <span v-if="asset.hash" class="asset-hash">MD5: {{ asset.hash }}</span>
             </div>
             <div class="asset-actions">
               <button type="button" @click.stop="downloadAsset(asset)">下载</button>
@@ -285,6 +299,7 @@ const downloadAsset = (asset: GeneratedAsset) => {
               <strong>{{ asset.name }}</strong>
               <span>{{ asset.detail }}</span>
               <span>{{ asset.sizeLabel }}</span>
+              <span v-if="asset.hash" class="asset-hash">MD5: {{ asset.hash }}</span>
             </div>
             <div class="list-actions">
               <button type="button" @click="emit('preview', asset)">预览</button>
@@ -302,6 +317,7 @@ const downloadAsset = (asset: GeneratedAsset) => {
                 <th>名称</th>
                 <th>详情</th>
                 <th>大小</th>
+                <th>哈希</th>
                 <th>操作</th>
               </tr>
             </thead>
@@ -315,13 +331,16 @@ const downloadAsset = (asset: GeneratedAsset) => {
                     <video v-else :src="asset.url" muted preload="metadata"></video>
                   </div>
                 </td>
-                <td>{{ asset.name }}</td>
+                <td class="table-name">{{ asset.name }}</td>
                 <td>{{ asset.detail }}</td>
                 <td>{{ asset.sizeLabel }}</td>
-                <td class="table-actions">
-                  <button type="button" @click="emit('preview', asset)">预览</button>
-                  <button type="button" @click="downloadAsset(asset)">下载</button>
-                  <button type="button" class="ghost-button" @click="removeAsset(asset.id)">删除</button>
+                <td>{{ asset.hash || '-' }}</td>
+                <td>
+                  <div class="table-actions">
+                    <button type="button" @click="emit('preview', asset)">预览</button>
+                    <button type="button" @click="downloadAsset(asset)">下载</button>
+                    <button type="button" class="ghost-button" @click="removeAsset(asset.id)">删除</button>
+                  </div>
                 </td>
               </tr>
             </tbody>
