@@ -2,17 +2,19 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import ImageGenerator from './components/ImageGenerator.vue'
 import VideoGenerator from './components/VideoGenerator.vue'
+import DerivativeGenerator from './components/DerivativeGenerator.vue'
 import type { GeneratedAsset, ToastPayload } from './types'
 import { generateId } from './utils/format'
 
 const maxHistory = 20
 
-type Tab = 'image' | 'video'
+type Tab = 'image' | 'video' | 'derive'
 type ToastEntry = ToastPayload & { id: string }
 
 const tabs: { label: string; value: Tab }[] = [
   { label: '图片占位', value: 'image' },
   { label: '视频占位', value: 'video' },
+  { label: '素材衍生', value: 'derive' },
 ]
 
 const activeTab = ref<Tab>('image')
@@ -127,8 +129,17 @@ const latestActivity = computed(() =>
       />
     </section>
 
-    <section class="panels" v-else>
+    <section class="panels" v-else-if="activeTab === 'video'">
       <VideoGenerator
+        :max-history="maxHistory"
+        @preview="openPreview"
+        @toast="pushToast"
+        @status="statusMessage = $event"
+      />
+    </section>
+
+    <section class="panels" v-else>
+      <DerivativeGenerator
         :max-history="maxHistory"
         @preview="openPreview"
         @toast="pushToast"
