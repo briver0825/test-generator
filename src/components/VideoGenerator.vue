@@ -15,6 +15,7 @@ type VideoConfig = {
   startColor: string
   text: string
   randomizeHash: boolean
+  withAudio: boolean
 }
 
 const props = defineProps<{
@@ -35,6 +36,7 @@ const videoConfig = reactive<VideoConfig>({
   startColor: '#0ea5e9',
   text: '测试视频',
   randomizeHash: false,
+  withAudio: false,
 })
 
 const viewOptions: { value: ViewMode; label: string }[] = [
@@ -133,12 +135,25 @@ const generateVideo = async () => {
     const baseColor = videoConfig.randomizeHash ? nudgedColor(videoConfig.startColor) : toFFmpegColor(videoConfig.startColor)
     const metadataArgs = videoConfig.randomizeHash ? ['-metadata', `seed=${generateId()}`] : []
     const outputName = `video_${Date.now()}.mp4`
+    const withAudio = videoConfig.withAudio
+    const audioInputArgs = withAudio
+      ? [
+          '-f',
+          'lavfi',
+          '-i',
+          `sine=frequency=440:duration=${durationSeconds}:sample_rate=44100`,
+        ]
+      : []
+    const mapArgs = withAudio ? ['-map', '0:v:0', '-map', '1:a:0'] : []
+    const audioCodecArgs = withAudio ? ['-c:a', 'aac', '-b:a', '128k'] : []
     emit('status', 'FFmpeg 正在生成视频…')
     await ffmpegInstance.exec([
       '-f',
       'lavfi',
       '-i',
       `color=c=${baseColor}:s=${width}x${height}:d=${durationSeconds}:r=${fps}`,
+      ...audioInputArgs,
+      ...mapArgs,
       '-vf',
       'format=yuv420p',
       '-movflags',
@@ -147,6 +162,7 @@ const generateVideo = async () => {
       'ultrafast',
       '-c:v',
       'libx264',
+      ...audioCodecArgs,
       '-pix_fmt',
       'yuv420p',
       ...metadataArgs,
@@ -241,6 +257,13 @@ const removeAsset = (assetId: string) => {
       <label>
         哈希扰动
         <select v-model="videoConfig.randomizeHash">
+          <option :value="false">关闭</option>
+          <option :value="true">开启</option>
+        </select>
+      </label>
+      <label>
+        包含音频
+        <select v-model="videoConfig.withAudio">
           <option :value="false">关闭</option>
           <option :value="true">开启</option>
         </select>
